@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+vk_bot.py
+vk_requests/Class_vk.py
+=======
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -158,3 +162,4 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
+>>>>>>> 4740886a2067b92fe8e3e6d009ce677651e97470
