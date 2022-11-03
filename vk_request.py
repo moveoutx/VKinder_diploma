@@ -66,6 +66,7 @@ class VkUser:
             if not user['is_closed']:  # Берём пользователей, только с открытым профилем, чтобы были с фото.
                 found_result_list.append([user['id'], f"{user['first_name']} {user['last_name']} \n"
                                                       f"https://vk.com/id{user['id']}"])
+        time.sleep(0.35)
         return found_result_list
 
     def get_three_max_likes_photo(self, user_id, album_id='-6'):
@@ -89,6 +90,7 @@ class VkUser:
         for foto_id in three_max_photo_id:
             photo_attachment_list.append(f'photo{user_id}_{foto_id}')
         attachment_str = ','.join(photo_attachment_list)
+        time.sleep(0.35)
         return attachment_str
 
 
@@ -99,6 +101,5 @@ vk_group_client = VkUser(vk_group_token, '5.131')
 # Токен пользователя вк (ваш токен) для поиска пользователей.(Групповой токен не наделён правами поиска)
 vk_token = get_token('vk_token.ini')
 vk_client = VkUser(vk_token, '5.131')
-
 
 

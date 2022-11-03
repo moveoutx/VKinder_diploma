@@ -1,10 +1,12 @@
+import re
+
 from vk_api import VkApi
-from vk_api.utils import get_random_id
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
-import re
-from vk_request import get_token, VkUser, vk_group_client, vk_client
+from vk_api.utils import get_random_id
 
+from ORM.class_ORM import *
+from vk_request import get_token, vk_group_client, vk_client
 
 # Авторизация токеном группы
 GROUP_ID = get_token('group_id.ini')
@@ -27,44 +29,82 @@ keyboard_2 = VkKeyboard(one_time=False, inline=True)
 keyboard_2.add_callback_button(label="Да", color=VkKeyboardColor.POSITIVE, payload={"type": "type_yes", "text": "1"},)
 keyboard_2.add_callback_button(label="Нет", color=VkKeyboardColor.NEGATIVE, payload={"type": "type_no", "text": "0"},)
 
-# №2. Клавиатура с 4 кнопками
+# №2. Клавиатура с 4 кнопками (текущий отображаемый контакт НЕ в Избранном)
 keyboard_4 = VkKeyboard(one_time=False, inline=True)
 keyboard_4.add_callback_button(label="Далее", color=VkKeyboardColor.PRIMARY,
                                payload={"type": "type_next", "text": "1"},)
-keyboard_4.add_callback_button(label="Избранное", color=VkKeyboardColor.POSITIVE,
+keyboard_4.add_callback_button(label="Избранное", color=VkKeyboardColor.SECONDARY,
                                payload={"type": "type_favour", "text": "2"},)
-keyboard_4.add_callback_button(label="Blacklist", color=VkKeyboardColor.NEGATIVE,
+keyboard_4.add_callback_button(label="Blacklist", color=VkKeyboardColor.SECONDARY,
                                payload={"type": "type_blacklist", "text": "3"},)
 keyboard_4.add_callback_button(label="Всё избранное", color=VkKeyboardColor.SECONDARY,
                                payload={"type": "type_all_favour", "text": "4"},)
 
+# №3. Клавиатура с 4 кнопками (текущий отображаемый контакт в Избранном)
+keyboard_4_likes = VkKeyboard(one_time=False, inline=True)
+keyboard_4_likes.add_callback_button(label="Далее", color=VkKeyboardColor.PRIMARY,
+                               payload={"type": "type_next", "text": "1"},)
+keyboard_4_likes.add_callback_button(label="Избранное", color=VkKeyboardColor.SECONDARY,
+                               payload={"type": "type_favour", "text": "2"},)
+keyboard_4_likes.add_callback_button(label="Blacklist", color=VkKeyboardColor.SECONDARY,
+                               payload={"type": "type_blacklist", "text": "3"},)
+keyboard_4_likes.add_callback_button(label="Всё избранное", color=VkKeyboardColor.POSITIVE,
+                               payload={"type": "type_all_favour", "text": "4"},)
+
+# №4. Клавиатура с 4 кнопками (текущий отображаемый контакт добавили только что в BlackList)
+keyboard_4_bl = VkKeyboard(one_time=False, inline=True)
+keyboard_4_bl.add_callback_button(label="Далее", color=VkKeyboardColor.PRIMARY,
+                               payload={"type": "type_next", "text": "1"},)
+keyboard_4_bl.add_callback_button(label="Избранное", color=VkKeyboardColor.SECONDARY,
+                               payload={"type": "type_favour", "text": "2"},)
+keyboard_4_bl.add_callback_button(label="Blacklist", color=VkKeyboardColor.NEGATIVE,
+                               payload={"type": "type_blacklist", "text": "3"},)
+keyboard_4_bl.add_callback_button(label="Всё избранное", color=VkKeyboardColor.SECONDARY,
+                               payload={"type": "type_all_favour", "text": "4"},)
+
+# Подключаемся к БД
+db = ORM()
 
 # Запускаем longpoll, получаем события из чата
 index_user = 0
 count_users = 0
 found_users_list = []
+found_users_list_without_bl = []
+user_id_likes_list = []
+user_id = 0  # Текущий пользователь, кто общается с ботом
 for event in longpoll.listen():
     if event.type == VkBotEventType.MESSAGE_NEW:
         user_message = event.obj.message["text"]
+        if user_message == "stop bot":
+            break
         if user_message != "":
             if event.from_chat:
                 answer_flag = False
                 for pattern in hello_patterns:
                     hello_flag = re.match(pattern, user_message)
                     if hello_flag:
-                        user_id = event.obj.user_id  # Если кто-то поздоровался, то смотрим его id
-                        # !!!!!!!!!!!!!!!! Здесь будет проверка, есть ли user_id в БД
-                        # Если есть в БД, то сообщение "Рады видеть вас снова" и сообщение с 4 кнопками
-                        # Если нет в БД, то сообщение как ниже.
-                        vk.messages.send(
-                            chat_id='1',
-                            random_id=get_random_id(),
-                            peer_id=2000000001,
-                            keyboard=keyboard_2.get_keyboard(),
-                            message="Привет! В нашем чате удобный поиск друзей из vk. Хотите попробовать?",
-                        )
-                        answer_flag = True
-                        break
+                        user_id = event.obj.message["from_id"]  # Если кто-то поздоровался, то смотрим его id в БД в Users
+                        if db.find_user_id(user_id):
+                            vk.messages.send(
+                                chat_id='1',
+                                random_id=get_random_id(),
+                                peer_id=2000000001,
+                                keyboard=keyboard_2.get_keyboard(),
+                                message="Привет! Рады видеть вас снова.\n Хотите продолжить поиск контактов?",
+                            )
+                            answer_flag = True
+                            break
+                        else:
+                            db.add_user(user_id)  # Если пользователь первый раз в чате, добавляем его в базу
+                            vk.messages.send(
+                                chat_id='1',
+                                random_id=get_random_id(),
+                                peer_id=2000000001,
+                                keyboard=keyboard_2.get_keyboard(),
+                                message="Привет! В нашем чате удобный поиск друзей из vk. Хотите попробовать?",
+                            )
+                            answer_flag = True
+                            break
                 if not answer_flag:
                     for pattern in bye_patterns:
                         bye_flag = re.match(pattern, user_message)
@@ -77,14 +117,6 @@ for event in longpoll.listen():
                             )
                             answer_flag = True
                             break
-                # # Третий вариант ответов(на будущее), если ещё нужен какой-то диалог на конкретную фразу
-                # # Кроме привет/пока.
-                # # Можно сделать счётчик и после 5 сообщений пользователя, рассказать ему о боте.
-                # if not answer_flag:
-                #     vk.messages.send(chat_id='1', random_id=get_random_id(), peer_id=2000000001,
-                #     keyboard=keyboard_2.get_keyboard(), message="",)
-                #     answer_flag = True
-                #     break
 
     # __________Обрабатываем клики по callback кнопкам___________________________________________________________
     elif event.type == VkBotEventType.MESSAGE_EVENT:
@@ -98,74 +130,143 @@ for event in longpoll.listen():
             )
         elif event_type == "type_yes":
             # Получаем информацию пользователя, общающегося с ботом. (Для теста вместо event.obj.user_id - любой id )
-            user_info = vk_group_client.get_users_info(event.obj.user_id)
+            user_id = event.obj.user_id
+            user_info = vk_group_client.get_users_info(user_id)
             # Находим список друзей по параметрам пользователя
             found_users_list = vk_client.search_users(user_info)
-            count_users = len(found_users_list)
             # Выводим информацию 0-й записи из словаря найденных пользователей
-            # +++++++++++++++ Добавить проверку на id из блэклист. Если из блэклист, то пропускать увеличив счётчик
+            user_id_bl_list = db.find_all_bl(user_id)
+            # Исключаем из итога все id из блэклиста, чтобы их не выводить
+            found_users_list_without_bl = [id_ for id_ in found_users_list if id_[0] not in user_id_bl_list]
+            count_users = len(found_users_list_without_bl)
+            # Найдём id-шники всех из Избранного
+            user_id_likes_list = db.find_all_likes(user_id)
             # 1. Получаем 3 фото с макс лайками.(или 2 или 1 фото, если их всего столько в профиле пользователя)
-            three_photo_attachment = vk_client.get_three_max_likes_photo(found_users_list[0][0])
+            three_photo_attachment = vk_client.get_three_max_likes_photo(found_users_list_without_bl[0][0])
             # 2. Имя Фамилия, ссылка на профиль в качестве сообщения
-            name_soname_href = found_users_list[0][1]
-            vk.messages.send(
-                peer_id=event.obj.peer_id,
-                random_id=get_random_id(),
-                chat_id=event.obj.chat_id,
-                message=name_soname_href,
-                attachment=three_photo_attachment,
-                keyboard=keyboard_4.get_keyboard(),
-            )
-        elif event_type == "type_next":
-            index_user += 1
-            if index_user < count_users:
-                # Выводим сообщение о следующем пользователе
-                # ++++++++++++ Добавить проверку на id из блэклист. Если из блэклист, то пропускать увеличив счётчик
-                # Если очередной пользователь уже в Избранном, то можно перекрасить кнопку Избранное в зелёный
-                three_photo_attachment = vk_client.get_three_max_likes_photo(found_users_list[index_user][0])
-                name_soname_href = found_users_list[index_user][1]
-                vk.messages.edit(
-                    peer_id=2000000001,
-                    chat_id=1,
+            name_soname_href = found_users_list_without_bl[0][1]
+            if found_users_list_without_bl[0][0] not in user_id_likes_list:
+                vk.messages.send(
+                    peer_id=event.obj.peer_id,
+                    random_id=get_random_id(),
+                    chat_id=event.obj.chat_id,
                     message=name_soname_href,
-                    conversation_message_id=event.obj.conversation_message_id,
                     attachment=three_photo_attachment,
                     keyboard=keyboard_4.get_keyboard(),
                 )
             else:
-                # Снова смотрим пользователей по кругу, начиная с 0
-                # +++++++++++++ Добавить проверку на id из блэклист. Если из блэклист, то пропускать увеличив счётчик
-                index_user = 0
-                three_photo_attachment = vk_client.get_three_max_likes_photo(found_users_list[index_user][0])
-                name_soname_href = found_users_list[index_user][1]
-                vk.messages.edit(
-                    peer_id=2000000001,
-                    chat_id=1,
-                    message='Вы просмотрели все найденные контакты.\nНачнём сначала\n' + name_soname_href,
-                    conversation_message_id=event.obj.conversation_message_id,
+                vk.messages.send(
+                    peer_id=event.obj.peer_id,
+                    random_id=get_random_id(),
+                    chat_id=event.obj.chat_id,
+                    message=name_soname_href,
                     attachment=three_photo_attachment,
-                    keyboard=keyboard_4.get_keyboard(),
+                    keyboard=keyboard_4_likes.get_keyboard(),
                 )
 
+        elif event_type == "type_next":
+            index_user += 1
+            if index_user < count_users:
+                # Если очередной пользователь уже в Избранном, то можно перекрасить кнопку Избранное в зелёный
+                three_photo_attachment = vk_client.get_three_max_likes_photo(found_users_list_without_bl[index_user][0])
+                name_soname_href = found_users_list_without_bl[index_user][1]
+                if found_users_list_without_bl[index_user][0] not in user_id_likes_list:
+                    vk.messages.edit(
+                        peer_id=event.obj.peer_id,
+                        random_id=get_random_id(),
+                        chat_id=event.obj.chat_id,
+                        message=name_soname_href,
+                        conversation_message_id=event.obj.conversation_message_id,
+                        attachment=three_photo_attachment,
+                        keyboard=keyboard_4.get_keyboard(),
+                    )
+                else:
+                    vk.messages.edit(
+                        peer_id=event.obj.peer_id,
+                        random_id=get_random_id(),
+                        chat_id=event.obj.chat_id,
+                        message=name_soname_href,
+                        conversation_message_id=event.obj.conversation_message_id,
+                        attachment=three_photo_attachment,
+                        keyboard=keyboard_4_likes.get_keyboard(),
+                    )
+            else:
+                # Снова смотрим пользователей по кругу, начиная с 0
+                index_user = 0
+                three_photo_attachment = vk_client.get_three_max_likes_photo(found_users_list_without_bl[index_user][0])
+                name_soname_href = found_users_list[index_user][1]
+                if found_users_list_without_bl[index_user][0] not in user_id_likes_list:
+                    vk.messages.edit(
+                        peer_id=event.obj.peer_id,
+                        random_id=get_random_id(),
+                        chat_id=event.obj.chat_id,
+                        message='Вы просмотрели все найденные контакты.\nНачнём сначала\n' + name_soname_href,
+                        conversation_message_id=event.obj.conversation_message_id,
+                        attachment=three_photo_attachment,
+                        keyboard=keyboard_4.get_keyboard(),
+                    )
+                else:
+                    vk.messages.edit(
+                        peer_id=event.obj.peer_id,
+                        random_id=get_random_id(),
+                        chat_id=event.obj.chat_id,
+                        message='Вы просмотрели все найденные контакты.\nНачнём сначала\n' + name_soname_href,
+                        conversation_message_id=event.obj.conversation_message_id,
+                        attachment=three_photo_attachment,
+                        keyboard=keyboard_4_likes.get_keyboard(),
+                    )
+
         elif event_type == "type_favour":
-            # !!!!!!!!!!!!!!!!!!!!!!!!!  id текущего выбранного пользователя записать в БД в Избранное
-            three_photo_attachment = vk_client.get_three_max_likes_photo(found_users_list[index_user][0])
-            name_soname_href = found_users_list[index_user][1]
+            user_id = event.obj.user_id
+            user_like_id = found_users_list_without_bl[index_user][0]
+            if user_like_id not in user_id_likes_list:
+                db.add_like(user_id, user_like_id)
+            three_photo_attachment = vk_client.get_three_max_likes_photo(found_users_list_without_bl[index_user][0])
+            name_soname_href = found_users_list_without_bl[index_user][1]
             vk.messages.edit(
                 peer_id=2000000001,
                 chat_id=1,
                 message='Контакт:\n' + name_soname_href + '\nдобавлен в Избранное',
                 conversation_message_id=event.obj.conversation_message_id,
                 attachment=three_photo_attachment,
-                keyboard=keyboard_4.get_keyboard(),
+                keyboard=keyboard_4_likes.get_keyboard(),
             )
         elif event_type == "type_blacklist":
-            # Если пользователь нажал на Blacklist
-            # +++++++++++++++++++++++ Заносим его id в БД blacklist
-            pass
+            user_id = event.obj.user_id
+            user_bl_id = found_users_list_without_bl[index_user][0]
+            db.add_black_list(user_id, user_bl_id)
+            three_photo_attachment = vk_client.get_three_max_likes_photo(user_bl_id)
+            name_soname_href = found_users_list_without_bl[index_user][1]
+            vk.messages.edit(
+                peer_id=2000000001,
+                chat_id=1,
+                message='Контакт:\n' + name_soname_href + '\nдобавлен в Blacklist',
+                conversation_message_id=event.obj.conversation_message_id,
+                attachment=three_photo_attachment,
+                keyboard=keyboard_4_bl.get_keyboard(),
+            )
         elif event_type == "type_all_favour":
-            # !!!!!!!!!!!!!!!!!!!!!!!!!!  Если пользователь нажал на Всё избранное
             # Выводим всех в одном сообщении построчно: Имя Фамилия и ссылка на профиль. Без фото.
-            pass
-
-# Для запуска проекта запускаем этот файл
+            user_id = event.obj.user_id
+            user_id_likes_list = db.find_all_likes(user_id)
+            if user_id_likes_list:
+                message_like = '    Избранное:\n'
+                for user_like in user_id_likes_list:
+                    user_like_info_dict = vk_group_client.get_users_info(user_like)
+                    message_like += f"{user_like_info_dict['first_name']} {user_like_info_dict['last_name']}    " \
+                                    f"https://vk.com/id{user_like}\n"
+                vk.messages.edit(
+                    peer_id=2000000001,
+                    chat_id=1,
+                    message=message_like,
+                    conversation_message_id=event.obj.conversation_message_id,
+                    keyboard=keyboard_4_likes.get_keyboard(),
+                )
+            else:
+                vk.messages.edit(
+                    peer_id=2000000001,
+                    chat_id=1,
+                    message='У вас пока нет избранных контактов',
+                    conversation_message_id=event.obj.conversation_message_id,
+                    keyboard=keyboard_4_likes.get_keyboard(),
+                )

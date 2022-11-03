@@ -4,12 +4,14 @@ from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
 
+
 # Новые
 class Users(Base):
     __tablename__ = "users"
 
     id = sq.Column(sq.Integer, primary_key=True)
     vk_id = sq.Column(sq.Integer)
+
 
 class Likes(Base):
     __tablename__ = "likes"
@@ -19,6 +21,7 @@ class Likes(Base):
     id_users = sq.Column(sq.Integer, sq.ForeignKey("users.id"))
 
     users = relationship(Users, backref="likes")
+
 
 class Blacklist(Base):
     __tablename__ = "blacklist"

@@ -1,6 +1,6 @@
 import sqlalchemy as sq
 from sqlalchemy.orm import sessionmaker
-from models import *
+from ORM.models import *
 from pprint import pprint
 import json
 
@@ -12,7 +12,6 @@ class ORM:
 
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
-
 
     def create_tables(self):
         create_tables(self.engine)
@@ -40,8 +39,16 @@ class ORM:
         self.session.commit()
 
     def find_user_id(self, user_id):
+        '''
+        Возвращает id (primary key) для user_id
+        :param user_id: ID пользователя ВКонтакте
+        :return: Users id
+        '''
         id = self.session.query(Users).filter(Users.vk_id == user_id).first()
-        return id.id
+        if id:
+            return id.id
+        else:
+            return None  # На случай, если БД с самого начала пустая
 
     def add_like(self, user_id, like_id):
         '''
@@ -50,19 +57,10 @@ class ORM:
         :param like_id: ID Кого добавляем
         :return:
         '''
-        user_list = self.all_users()
-        if user_id not in user_list:
-            user_like = Users(vk_id=user_id)
-            self.session.add(user_like)
-            self.session.commit()
-            like = Likes(id_likes=like_id, id_users=user_like.id)
-            self.session.add(like)
-            self.session.commit()
-        else:
-            id_user = self.find_user_id(user_id)
-            like = Likes(id_likes=like_id, id_users=id_user)
-            self.session.add(like)
-            self.session.commit()
+        id_user = self.find_user_id(user_id)
+        like = Likes(id_likes=like_id, id_users=id_user)
+        self.session.add(like)
+        self.session.commit()
 
     def add_black_list(self, user_id, black_list_id):
         '''
@@ -71,19 +69,10 @@ class ORM:
         :param black_list_id: ID Кого добавляем
         :return:
         '''
-        user_list = self.all_users()
-        if user_id not in user_list:
-            users = Users(vk_id=user_id)
-            self.session.add(users)
-            self.session.commit()
-            black_list = Blacklist(id_black=black_list_id, id_users=users.id)
-            self.session.add(black_list)
-            self.session.commit()
-        else:
-            id_user = self.find_user_id(user_id)
-            black_list = Blacklist(id_black=black_list_id, id_users=id_user)
-            self.session.add(black_list)
-            self.session.commit()
+        id_user = self.find_user_id(user_id)
+        black_list = Blacklist(id_black=black_list_id, id_users=id_user)
+        self.session.add(black_list)
+        self.session.commit()
 
     def find_all_likes(self, user_id):
         '''
@@ -121,8 +110,8 @@ class ORM:
 if __name__ == "__main__":
     db = ORM()
 
-    # db.create_tables()
-    # db.delete_table   s()
+    db.create_tables()
+    # db.delete_tables()
     # db.reload_tables()
 
     # Заполняем базу тестовыми данными, проверяем что id пользователя не дублируются
@@ -148,5 +137,5 @@ if __name__ == "__main__":
     # db.add_black_list(2, 8)
 
     #  Выборки
-    print(db.find_all_likes(2))
-    print(db.find_all_bl(1))
+    # print(db.find_all_likes(2))
+    # print(db.find_all_bl(1))
