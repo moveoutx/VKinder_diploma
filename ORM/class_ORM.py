@@ -35,9 +35,13 @@ class ORM:
         :param user_id: ID пользователя ВКонтакте
         :return:
         '''
-        user = User(vk_id_user=user_id)
+        user = Users(vk_id=user_id)
         self.session.add(user)
         self.session.commit()
+
+    def find_user_id(self, user_id):
+        id = self.session.query(Users).filter(Users.vk_id == user_id).first()
+        return id.id
 
     def add_like(self, user_id, like_id):
         '''
@@ -46,12 +50,19 @@ class ORM:
         :param like_id: ID Кого добавляем
         :return:
         '''
-        like = Likes(vk_id_likes=like_id)
-        self.session.add(like)
-        self.session.commit()
-        user_like = User(vk_id_user=user_id, likes_id=like.id)
-        self.session.add(user_like)
-        self.session.commit()
+        user_list = self.all_users()
+        if user_id not in user_list:
+            user_like = Users(vk_id=user_id)
+            self.session.add(user_like)
+            self.session.commit()
+            like = Likes(id_likes=like_id, id_users=user_like.id)
+            self.session.add(like)
+            self.session.commit()
+        else:
+            id_user = self.find_user_id(user_id)
+            like = Likes(id_likes=like_id, id_users=id_user)
+            self.session.add(like)
+            self.session.commit()
 
     def add_black_list(self, user_id, black_list_id):
         '''
@@ -60,12 +71,19 @@ class ORM:
         :param black_list_id: ID Кого добавляем
         :return:
         '''
-        black_list = Black_list(vk_id_bl=black_list_id)
-        self.session.add(black_list)
-        self.session.commit()
-        user_black_list = User(vk_id_user=user_id, black_list_id=black_list.id)
-        self.session.add(user_black_list)
-        self.session.commit()
+        user_list = self.all_users()
+        if user_id not in user_list:
+            users = Users(vk_id=user_id)
+            self.session.add(users)
+            self.session.commit()
+            black_list = Blacklist(id_black=black_list_id, id_users=users.id)
+            self.session.add(black_list)
+            self.session.commit()
+        else:
+            id_user = self.find_user_id(user_id)
+            black_list = Blacklist(id_black=black_list_id, id_users=id_user)
+            self.session.add(black_list)
+            self.session.commit()
 
     def find_all_likes(self, user_id):
         '''
@@ -74,8 +92,8 @@ class ORM:
         :return: Возвращает список ID в likes листе
         '''
         likes = []
-        for l in self.session.query(Likes).join(User.likes).filter(User.vk_id_user == user_id).all():
-            likes.append(l.vk_id_likes)
+        for l in self.session.query(Likes).join(Users).filter(Users.vk_id == user_id).all():
+            likes.append(l.id_likes)
         return likes
 
     def find_all_bl(self, user_id):
@@ -85,19 +103,50 @@ class ORM:
         :return:
         '''
         blacklist = []
-        for bl in self.session.query(Black_list).join(User.black_list).filter(User.vk_id_user == user_id).all():
-            blacklist.append(bl)
+        for bl in self.session.query(Blacklist).join(Users).filter(Users.vk_id == user_id).all():
+            blacklist.append(bl.id_black)
         return blacklist
+
+    def all_users(self):
+        '''
+        Возвращает список id всех пользователей БД
+        :return:
+        '''
+        user_list = []
+        for user in self.session.query(Users):
+            user_list.append(user.vk_id)
+        return user_list
 
 
 if __name__ == "__main__":
     db = ORM()
 
     # db.create_tables()
-    # db.delete_tables()
+    # db.delete_table   s()
     # db.reload_tables()
 
-    # db.add_user("1023568")
-    # db.add_like("321","25648542")
+    # Заполняем базу тестовыми данными, проверяем что id пользователя не дублируются
+    # db.add_like(1, 1)
+    # db.add_like(1, 2)
+    # db.add_like(1, 3)
+    # db.add_like(1, 4)
+    # db.add_like(1, 5)
+    # db.add_like(1, 6)
+    # db.add_black_list(1, 7)
+    # db.add_black_list(1, 8)
+    # db.add_black_list(1, 9)
+    # db.add_like(2, 2)
+    # db.add_like(2, 7)
+    # db.add_like(2, 5)
+    # db.add_like(2, 12)
+    # db.add_like(2, 17)
+    # db.add_like(2, 18)
+    # db.add_like(2, 20)
+    # db.add_like(2, 21)
+    # db.add_black_list(2, 3)
+    # db.add_black_list(2, 4)
+    # db.add_black_list(2, 8)
 
-    print(db.find_all_bl("321"))
+    #  Выборки
+    print(db.find_all_likes(2))
+    print(db.find_all_bl(1))
