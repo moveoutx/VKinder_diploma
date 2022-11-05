@@ -13,7 +13,7 @@ GROUP_ID = get_token('group_id.ini')
 GROUP_TOKEN = get_token('vk_group_token.ini')
 API_VERSION = "5.131"
 
-# Паттерны для привет/пока
+# Паттерны для бота на сообщение привет/пока
 hello_patterns = [r"\.?([П|п]ривет)\.?", r"\.?([З|з]дравствуй)\.?", r"\.?([П|п]рив)\.?", r"\.?([З|з]доров[а|\s|о])\.?",
                   r"\.?([H|h]ello)\.?", r"[^|\s|,]([H|h]i[\s|,|!|.]?)\.?", r"(^[H,h]i)"]
 bye_patterns = [r"\.?([П|п]ока)\.?", r"\.?([Д|д]о\s?свид)\.?", r"\.?([П|п]океда)\.?", r"\.?([B|b]ye)\.?",
@@ -65,17 +65,20 @@ keyboard_4_bl.add_callback_button(label="Всё избранное", color=VkKey
 # Подключаемся к БД
 db = ORM()
 
+
+count_users = 0  # Кол-во найденных контактов
+found_users_list = []  # Все контакты найденные по критериям запроса
+found_users_list_without_bl = []  # Все найденные контакты минус id-шники из blacklist
+index_user = 0  # Номер индекса в листе найденных пользователей (нужен для перебора по листу)
+user_id_likes_list = []  # Избранные контакты текущего пользователя
+user_id = 0  # id вк текущего пользователя, общающегося с ботом
+
 # Запускаем longpoll, получаем события из чата
-index_user = 0
-count_users = 0
-found_users_list = []
-found_users_list_without_bl = []
-user_id_likes_list = []
-user_id = 0  # Текущий пользователь, кто общается с ботом
 for event in longpoll.listen():
+    #  __________ Обработка новых сообщений в чате ________________________________________________________________
     if event.type == VkBotEventType.MESSAGE_NEW:
         user_message = event.obj.message["text"]
-        if user_message == "stop bot":
+        if user_message == "stop bot":  # Сообщение в чате для остановки бота
             break
         if user_message != "":
             if event.from_chat:
@@ -83,12 +86,12 @@ for event in longpoll.listen():
                 for pattern in hello_patterns:
                     hello_flag = re.match(pattern, user_message)
                     if hello_flag:
-                        user_id = event.obj.message["from_id"]  # Если кто-то поздоровался, то смотрим его id в БД в Users
-                        if db.find_user_id(user_id):
+                        user_id = event.obj.message["from_id"]
+                        if db.find_user_id(user_id):  # Если кто-то поздоровался, то смотрим его id в БД в Users
                             vk.messages.send(
-                                chat_id='1',
+                                peer_id=event.message.peer_id,
+                                chat_id=event.chat_id,
                                 random_id=get_random_id(),
-                                peer_id=2000000001,
                                 keyboard=keyboard_2.get_keyboard(),
                                 message="Привет! Рады видеть вас снова.\n Хотите продолжить поиск контактов?",
                             )
@@ -97,22 +100,22 @@ for event in longpoll.listen():
                         else:
                             db.add_user(user_id)  # Если пользователь первый раз в чате, добавляем его в базу
                             vk.messages.send(
-                                chat_id='1',
+                                peer_id=event.message.peer_id,
+                                chat_id=event.chat_id,
                                 random_id=get_random_id(),
-                                peer_id=2000000001,
                                 keyboard=keyboard_2.get_keyboard(),
                                 message="Привет! В нашем чате удобный поиск друзей из vk. Хотите попробовать?",
                             )
                             answer_flag = True
                             break
                 if not answer_flag:
-                    for pattern in bye_patterns:
+                    for pattern in bye_patterns:  # Если кто то говорит пока, то бот отвечает
                         bye_flag = re.match(pattern, user_message)
                         if bye_flag:
                             vk.messages.send(
-                                chat_id='1',
+                                peer_id=event.message.peer_id,
+                                chat_id=event.chat_id,
                                 random_id=get_random_id(),
-                                peer_id=2000000001,
                                 message="До свидания! Заходите ещё.",
                             )
                             answer_flag = True
@@ -173,7 +176,6 @@ for event in longpoll.listen():
                 if found_users_list_without_bl[index_user][0] not in user_id_likes_list:
                     vk.messages.edit(
                         peer_id=event.obj.peer_id,
-                        random_id=get_random_id(),
                         chat_id=event.obj.chat_id,
                         message=name_soname_href,
                         conversation_message_id=event.obj.conversation_message_id,
@@ -183,7 +185,6 @@ for event in longpoll.listen():
                 else:
                     vk.messages.edit(
                         peer_id=event.obj.peer_id,
-                        random_id=get_random_id(),
                         chat_id=event.obj.chat_id,
                         message=name_soname_href,
                         conversation_message_id=event.obj.conversation_message_id,
@@ -198,7 +199,6 @@ for event in longpoll.listen():
                 if found_users_list_without_bl[index_user][0] not in user_id_likes_list:
                     vk.messages.edit(
                         peer_id=event.obj.peer_id,
-                        random_id=get_random_id(),
                         chat_id=event.obj.chat_id,
                         message='Вы просмотрели все найденные контакты.\nНачнём сначала\n' + name_soname_href,
                         conversation_message_id=event.obj.conversation_message_id,
@@ -208,7 +208,6 @@ for event in longpoll.listen():
                 else:
                     vk.messages.edit(
                         peer_id=event.obj.peer_id,
-                        random_id=get_random_id(),
                         chat_id=event.obj.chat_id,
                         message='Вы просмотрели все найденные контакты.\nНачнём сначала\n' + name_soname_href,
                         conversation_message_id=event.obj.conversation_message_id,
@@ -224,8 +223,8 @@ for event in longpoll.listen():
             three_photo_attachment = vk_client.get_three_max_likes_photo(found_users_list_without_bl[index_user][0])
             name_soname_href = found_users_list_without_bl[index_user][1]
             vk.messages.edit(
-                peer_id=2000000001,
-                chat_id=1,
+                peer_id=event.obj.peer_id,
+                chat_id=event.obj.chat_id,
                 message='Контакт:\n' + name_soname_href + '\nдобавлен в Избранное',
                 conversation_message_id=event.obj.conversation_message_id,
                 attachment=three_photo_attachment,
@@ -238,8 +237,8 @@ for event in longpoll.listen():
             three_photo_attachment = vk_client.get_three_max_likes_photo(user_bl_id)
             name_soname_href = found_users_list_without_bl[index_user][1]
             vk.messages.edit(
-                peer_id=2000000001,
-                chat_id=1,
+                peer_id=event.obj.peer_id,
+                chat_id=event.obj.chat_id,
                 message='Контакт:\n' + name_soname_href + '\nдобавлен в Blacklist',
                 conversation_message_id=event.obj.conversation_message_id,
                 attachment=three_photo_attachment,
@@ -256,16 +255,16 @@ for event in longpoll.listen():
                     message_like += f"{user_like_info_dict['first_name']} {user_like_info_dict['last_name']}    " \
                                     f"https://vk.com/id{user_like}\n"
                 vk.messages.edit(
-                    peer_id=2000000001,
-                    chat_id=1,
+                    peer_id=event.obj.peer_id,
+                    chat_id=event.obj.chat_id,
                     message=message_like,
                     conversation_message_id=event.obj.conversation_message_id,
                     keyboard=keyboard_4_likes.get_keyboard(),
                 )
             else:
                 vk.messages.edit(
-                    peer_id=2000000001,
-                    chat_id=1,
+                    peer_id=event.obj.peer_id,
+                    chat_id=event.obj.chat_id,
                     message='У вас пока нет избранных контактов',
                     conversation_message_id=event.obj.conversation_message_id,
                     keyboard=keyboard_4_likes.get_keyboard(),

@@ -20,6 +20,11 @@ class VkUser:
         self.url_list = []  # Список со всеми url фото, которые нужно скачать
 
     def get_users_info(self, user_id):
+        '''
+        Получаем информацию о пользователе vk
+        :param user_id: ID пользователя ВКонтакте
+        :return: словарь вида {'id': , 'first_name': , 'last_name': , 'bdate': , 'sex': , 'country': , 'city': , 'has_photo':  }
+        '''
         get_users_params = {'user_id': user_id, 'fields': 'bdate, sex, city, has_photo, country'}
         res = requests.get('https://api.vk.com/method/users.get', params={**self.params, **get_users_params})
         user_info = res.json()['response'][0]
@@ -44,10 +49,11 @@ class VkUser:
         return result_dict
 
     def search_users(self, params_dict):
-        """
+        '''
         Функция поиска по году, полу, городу.
-        Возвращает список вида [[user1_id, 'Имя Фамилия ссылка'], [user2_id, 'Имя Фамилия ссылка'], ...]
-        """
+        :param params_dict: словарь вида {'id': , 'first_name': , 'last_name': , 'bdate': , 'sex': , 'country': , 'city': , 'has_photo':  }
+        : return: Возвращает список вида [[user1_id, 'Имя Фамилия ссылка'], [user2_id, 'Имя Фамилия ссылка'], ...]
+        '''
         # Если у пользователя не стоит год, то запрос по году не делаем,
         if 'year' in params_dict:
             search_params = {'birth_year': params_dict['year'], 'sex': params_dict['sex'],
@@ -70,6 +76,13 @@ class VkUser:
         return found_result_list
 
     def get_three_max_likes_photo(self, user_id, album_id='-6'):
+        '''
+        Возвращает строку с 1, 2 или 3 id_фото с максимальными лайками из профиля пользователя, начиная с
+        максимальных лайков.
+        Строка сформирована для отправки сообщения с фото в чат методом messege.send c параметром attachment
+        :param user_id: ID пользователя ВКонтакте
+        :return str: - строка вида "<user_id>photo<photo_id1>, <user_id>photo<photo_id2>, <user_id>photo<photo_id3>"
+        '''
         get_photo_params = {'owner_id': user_id, 'album_id': album_id, 'extended': 1}
         res = requests.get('https://api.vk.com/method/photos.get', params={**self.params, **get_photo_params}).json()
         likes_id_dict_all = {}

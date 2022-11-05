@@ -1,8 +1,5 @@
-import sqlalchemy as sq
 from sqlalchemy.orm import sessionmaker
 from ORM.models import *
-from pprint import pprint
-import json
 
 
 class ORM:
