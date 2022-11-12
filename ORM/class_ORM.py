@@ -4,7 +4,7 @@ from ORM.models import *
 
 class ORM:
     def __init__(self):
-        self.DSN = "postgresql://postgres:6950dc6c7@localhost:5432/vk_bot"
+        self.DSN = "postgresql://postgres:your_password_posgtresql@localhost:5432/vk_bot2"
         self.engine = sq.create_engine(self.DSN)
 
         Session = sessionmaker(bind=self.engine)
